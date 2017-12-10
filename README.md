@@ -12,8 +12,8 @@
 
 create server:(at most 1)
 
-./server
+-./server
 
 create client:(unlimit)
 
-./client
+-./client
