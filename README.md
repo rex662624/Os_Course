@@ -6,7 +6,7 @@
 
 # Compile:
 
-make
+- Use `make`command.
 
 # Run:
 
