@@ -1,0 +1,215 @@
+#include "slave.h"
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+int countword(struct mail_t*);
+void substr(char *dest, const char* src, unsigned int start,
+            unsigned int cnt);//find substring
+
+int main(int argc, char **argv)
+{
+//    File *file = fopen("/sys/kernel/hw2/mailbox",O_RDWR);
+    int sysfs_fd = open("/sys/kernel/hw2/mailbox",O_RDWR);
+    /*	char *buf =(char*)malloc(100);
+    	buf = "sendandrec";
+    	char *buff =(char*)malloc(100);
+    	int a =write(sysfs_fd,buf,100);
+    	int b =read(sysfs_fd,buff,100);
+    	printf("%d %d %d %s %s\n",a,b,sysfs_fd,buf,buff);
+    */
+
+    /*	char *path = (char*)malloc(100);
+    char *recvpath = (char*)malloc(100);
+    	char* a = (char*)malloc(100);
+    	path ="5";
+    	char *path2 = (char*)malloc(100);
+    	char *path3 = (char*)malloc(100);
+    	path2 ="2/path/to/file";
+    	path3 ="3/path/to/file";
+
+    //   recvpath ="d" ;//加上這行就會錯誤
+    	int t =write(sysfs_fd,path,100);
+    //	t =write(sysfs_fd,path,100);
+    	t =write(sysfs_fd,path2,100);
+        t =write(sysfs_fd,path3,100);
+    	int i;
+    	int m ;
+        for( i =0; i<8; i++) {
+    		m =read(sysfs_fd,recvpath,100);
+
+            close(sysfs_fd);
+    		sysfs_fd = open("/sys/kernel/hw2/mailbox",O_RDWR);
+    //		m =read(sysfs_fd,a,100);
+    		printf("%s %s %s t:%d m:%d\n",path,recvpath,a,t,m);
+    	}*/
+    /*	char *recmsg = (char*)malloc(100);
+    	int a;
+    	int i;
+    	for(i=0; i<3; i++) {
+    		a= read(sysfs_fd,recmsg,100);
+    		close(sysfs_fd);
+    		sysfs_fd = open("/sys/kernel/hw2/mailbox",O_RDWR);
+    		printf("rec:%s a:%d\n",recmsg,a);
+    	}
+    	printf("----------------\n");*/
+    char *recmsg = (char*)malloc(100);
+    int a,i;
+    int count;
+
+    struct mail_t * mail= malloc(sizeof(struct mail_t));
+
+    for(i=0; i<3; i++) {
+        int b = receive_from_fd(sysfs_fd,mail);
+        printf("slave read %d : %s\n",b,mail->file_path);
+        //a= read(sysfs_fd,recmsg,100);
+        close(sysfs_fd);
+        sysfs_fd = open("/sys/kernel/hw2/mailbox",O_RDWR);
+//        printf("rec:%s a:%d\n",recmsg,a);
+        count = countword(mail);
+        printf("count %s : %d\n",mail->file_path,count);
+    }
+    //printf("count: %d",count);
+    close(sysfs_fd);
+//    while(1);
+}
+
+int countword(struct mail_t *mail)
+{
+    FILE *fp;
+    int wordcount=0;
+    char *path=malloc(100);
+    char *keyword=malloc(100);
+    char *string = malloc(100);
+    int i =0;
+    sprintf(keyword,mail->data.query_word);
+    sprintf(path,mail->file_path);
+    /*    while(infor[i]!='-')//find keyword
+        {
+            i++;
+        }
+        substr(keyword,infor,0,i);//XXXXX-
+        int j=0;
+        while(infor[j]!='+')//find path
+        {
+            j++;
+        }
+        substr(path,infor,i+1,j-i-1);//-XXXXX+ count = j-i-1*/
+//    printf("key:%s path:%s\n",keyword,path);
+
+    char*tmp =malloc(100);
+    sprintf(tmp,keyword);
+    strcat(tmp,".");//apple.
+    fp = fopen(path,"r");
+    if ( fp ) {
+        while(fscanf(fp,"%s",string)==1) {
+            if(strcmp(keyword,string)==0) wordcount++;
+            else if (strcmp(keyword,string)!=0) {
+                //apple, apple. apple? apple! apple;
+                int i2;
+                int judge=0;
+                for(i2=0; i2<strlen(keyword); i2++)
+                    if(string[i2]!=keyword[i2])judge=-1;
+                char a = string[strlen(keyword)];
+                if(a!='.'&&a!='?'&&a!=','&&a!=';'&&a!='!')judge=-1;
+                if(judge==0) {
+                    wordcount++;
+                    int j2;
+                    //apple,apple ; apple.Apple
+                    if(string[strlen(keyword)+1]!=keyword[0]
+                            &&string[strlen(keyword)+1]!=toupper(keyword[0]))judge=-1;//.a && .A
+                    for(j2=1; j2<strlen(keyword); j2++) { //pple
+                        if(keyword[j2]!=string[strlen(keyword)+1+j2])judge=-1;
+                    }
+                    if(judge==0)wordcount++;
+                }
+
+                //Apple
+                char up = toupper(keyword[0]);
+                //    printf("%c \n",up);
+                if(strlen(keyword)==strlen(string)&&string[0]==up)wordcount++;
+
+            }
+        }
+    } else {
+        printf("Failed to open the file\n");
+    }
+    return wordcount;
+}
+void substr(char *dest, const char* src, unsigned int start, unsigned int cnt)
+{
+    strncpy(dest, src + start, cnt);
+    dest[cnt] = 0;
+}
+
+int send_to_fd(int sysfs_fd, struct mail_t *mail)
+{
+    char *temp = malloc(200);
+    // concat path/ with 1.txt => path/1.txt
+        char *buf =malloc(200);
+            sprintf(buf,mail->data.query_word);
+                strcat(buf,"-");
+                    strcat(buf,mail->file_path);
+                        strcat(buf,"+");
+                            printf("write: %s\n",buf);
+                                int ret_val = write(sysfs_fd,buf,100);
+
+    /*
+     * write something or nothing
+     */
+
+//	int ret_val = write(sysfs_fd, ...);
+//	if (ret_val == ERR_FULL) {
+    /*
+     * write something or nothing
+     */
+//	} else {
+    /*
+     * write something or nothing
+     */
+//	}
+
+    /*
+     * write something or nothing
+     */
+}
+
+int receive_from_fd(int sysfs_fd, struct mail_t *mail)
+{
+    /*
+     * write something or nothing
+     */
+    char *infor = malloc(100);
+    int ret_val = read(sysfs_fd,infor,100);
+    close(sysfs_fd);
+    sysfs_fd = open("/sys/kernel/hw2/mailbox",O_RDWR);
+
+    int i =0;
+    while(infor[i]!='-') { //find keyword
+        i++;
+    }
+    substr(mail->data.query_word,infor,0,i);//XXXXX-
+    int j=0;
+    while(infor[j]!='+') { //find path
+        j++;
+    }
+    substr(mail->file_path,infor,i+1,j-i-1);//-XXXXX+ count = j-i-1
+
+//	if (ret_val == ERR_EMPTY) {
+    /*
+     * write something or nothing
+     */
+//	} else {
+    /*
+     * write something or nothing
+     */
+//	}
+
+    /*
+     * write something or nothing
+     */
+    return ret_val;
+}
+
+
